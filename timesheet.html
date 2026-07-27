@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>myTime & Expenses</title>
+<link rel="stylesheet" href="design-system.css">
+<style>
+/* timesheet.html — page-specific overrides only */
+.timesheet-wrap { padding: 20px 24px 48px; }
+table { min-width: 1100px; }
+
+/* toolbar button height override for compact toolbar */
+.toolbar .btn { height: 32px; padding: 0 14px; font-size: 12px; }
+
+/* status-badge aliases for this page */
+.status-badge        { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: var(--radius-pill); font-size: 11px; font-weight: 600; }
+.status-badge.draft      { background: rgba(107,120,151,.1); color: var(--muted-fg); border: 1px solid rgba(107,120,151,.2); }
+.status-badge.submitted  { background: rgba(59,79,191,.1); color: var(--billable); border: 1px solid rgba(59,79,191,.25); }
+</style>
+</head>
+<body>
+
+<!-- APP HEADER -->
+<header class="app-header">
+  <div class="logo">myTime &amp; Expenses</div>
+  <nav>
+    <div class="nav-link active">Time</div>
+    <div class="nav-link">Expenses</div>
+    <div class="nav-link">Charge Codes</div>
+    <div class="nav-link">Summary</div>
+    <div class="nav-link">Preferences</div>
+  </nav>
+  <div class="header-right">
+    <button class="hdr-icon" title="Notifications">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+    </button>
+    <button class="hdr-icon" title="Help">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3M12 17h.01"/></svg>
+    </button>
+    <div class="avatar">IK</div>
+  </div>
+</header>
+
+<!-- TOOLBAR -->
+<div class="toolbar">
+  <div class="period-nav">
+    <button class="nav-arrow" onclick="showToast('Previous period','📅')">
+      <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <div class="period-text">Jul 16 – Jul 31, 2026</div>
+    <button class="nav-arrow" onclick="showToast('Next period','📅')">
+      <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+    </button>
+  </div>
+
+  <span class="status-badge draft" id="statusBadge"><span class="dot"></span>Draft</span>
+  <div class="unsaved" id="unsavedDot"></div>
+
+  <div class="spacer"></div>
+
+  <button class="btn btn-ghost" onclick="handleSave()">
+    <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+    Save
+  </button>
+  <button class="btn btn-outline" onclick="addChargeCode()">
+    <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    New Entry
+  </button>
+  <button class="btn btn-accent" onclick="handleSubmit()">
+    Submit
+    <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+  </button>
+</div>
+
+<!-- KPI CARDS -->
+<div class="stats-row">
+  <div class="kpi-card">
+    <div class="kpi-top">
+      <div class="kpi-label">Hours Logged</div>
+      <div class="kpi-icon teal">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      </div>
+    </div>
+    <div class="kpi-value" id="kpiTotal">96.0</div>
+    <div class="kpi-sub">of 96.0h schedule</div>
+    <div class="kpi-bar"><div class="kpi-fill green" id="kpiFill" style="width:100%"></div></div>
+  </div>
+
+  <div class="kpi-card">
+    <div class="kpi-top">
+      <div class="kpi-label">Work Schedule</div>
+      <div class="kpi-icon indigo">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      </div>
+    </div>
+    <div class="kpi-value">96.0</div>
+    <div class="kpi-sub">12 working days · Period 14</div>
+    <div class="kpi-bar"><div class="kpi-fill teal" style="width:100%"></div></div>
+  </div>
+
+  <div class="kpi-card">
+    <div class="kpi-top">
+      <div class="kpi-label">Utilisation</div>
+      <div class="kpi-icon amber">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      </div>
+    </div>
+    <div class="kpi-value" id="kpiUtil">100%</div>
+    <div class="kpi-sub" id="kpiUtilSub">On track</div>
+    <div class="kpi-bar"><div class="kpi-fill green" id="kpiUtilFill" style="width:100%"></div></div>
+  </div>
+
+  <div class="kpi-card">
+    <div class="kpi-top">
+      <div class="kpi-label">Variance</div>
+      <div class="kpi-icon green">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+    </div>
+    <div class="kpi-value" id="kpiVar" style="font-size:22px;margin-top:8px;letter-spacing:0">+0.0h</div>
+    <div class="kpi-sub" id="kpiVarSub">Fully scheduled</div>
+    <div class="kpi-bar"><div class="kpi-fill green" id="kpiVarFill" style="width:50%"></div></div>
+  </div>
+</div>
+
+<!-- TIMESHEET -->
+<div class="timesheet-wrap">
+  <div class="sheet-card">
+    <div class="sheet-head">
+      <div>
+        <div class="sheet-title">Timesheet — Jul 16 to 31, 2026</div>
+        <div class="sheet-sub">Click any cell to edit · Weekend cells accept overtime · TM = Time &amp; Materials</div>
+      </div>
+      <button class="btn btn-ghost" style="height:28px;font-size:11px;padding:0 10px;" onclick="addChargeCode()">
+        <svg width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Add charge code
+      </button>
+    </div>
+
+    <div class="sheet-scroll">
+      <table>
+        <thead id="thead"></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast">
+  <span id="toastIcon">✓</span>
+  <span id="toastMsg">Saved</span>
+</div>
+
+<script>
+const DAYS = [
+  {d:16,w:'Thu',wknd:false},{d:17,w:'Fri',wknd:false},
+  {d:18,w:'Sat',wknd:true}, {d:19,w:'Sun',wknd:true},
+  {d:20,w:'Mon',wknd:false},{d:21,w:'Tue',wknd:false},
+  {d:22,w:'Wed',wknd:false},{d:23,w:'Thu',wknd:false},
+  {d:24,w:'Fri',wknd:false},{d:25,w:'Sat',wknd:true},
+  {d:26,w:'Sun',wknd:true}, {d:27,w:'Mon',wknd:false}, // today
+  {d:28,w:'Tue',wknd:false},{d:29,w:'Wed',wknd:false},
+  {d:30,w:'Thu',wknd:false},{d:31,w:'Fri',wknd:false},
+];
+
+const SCHEDULE = [8,8,0,0,8,8,8,8,8,0,0,8,8,8,8,8];
+const SCHEDULE_TOTAL = 96;
+const TODAY = 27;
+const LOCS = ['TM','WFH','Client','Office','Remote'];
+const COLORS = ['#0B7C7C','#3B4FBF','#7C3AED','#C47F17','#059669','#C92722'];
+
+let codes = [{
+  id:1, code:'AU_Extl Tech_AIP_68072_5301', proj:'CU17L001',
+  loc:'TM', color:'#0B7C7C',
+  hrs:[8,8,0,0,8,8,8,8,8,0,0,8,8,8,8,8]
+}];
+let nextId = 2;
+
+// ── RENDER ──────────────────────────────────────────────────────
+function renderHead() {
+  let h = '<tr><th class="pin-left">Charge Code</th>';
+  DAYS.forEach(d => {
+    const cls = [d.wknd?'wknd':'', d.d===TODAY?'today-col':''].filter(Boolean).join(' ');
+    h += `<th class="${cls}"><span class="th-num">${d.d}</span><span class="th-dow">${d.w}</span></th>`;
+  });
+  h += '<th class="pin-right">Total</th></tr>';
+  document.getElementById('thead').innerHTML = h;
+}
+
+function renderBody() {
+  const dailyTotals = DAYS.map((_,i) => codes.reduce((s,c) => s+(c.hrs[i]||0), 0));
+  const grand = dailyTotals.reduce((a,b) => a+b, 0);
+  let h = '';
+
+  // Charge code rows
+  codes.forEach(cc => {
+    const rowTotal = cc.hrs.reduce((a,b)=>a+b,0);
+    h += `<tr class="charge-row" data-id="${cc.id}">`;
+    h += `<td class="pin-left">
+      <div class="cc-head">
+        <div class="cc-dot" style="background:${cc.color}"></div>
+        <div class="cc-name" title="${cc.code}">${cc.code}</div>
+      </div>
+      <div class="cc-meta">
+        <span class="cc-id">${cc.proj}</span>
+        <span class="loc-chip" data-id="${cc.id}">
+          <span class="loc-txt">${cc.loc}</span>
+          <svg width="7" height="7" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+        </span>
+        <button class="rm-btn" data-rm="${cc.id}" title="Remove">
+          <svg width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+    </td>`;
+
+    DAYS.forEach((d,i) => {
+      const v = cc.hrs[i];
+      const cls = ['hour-cell', d.wknd?'wknd':'', d.d===TODAY?'today-col':''].filter(Boolean).join(' ');
+      const inp = ['hour-input', v===0?'zero':''].filter(Boolean).join(' ');
+      h += `<td class="${cls}"><input type="number" class="${inp}" min="0" max="24" step="0.5"
+        value="${v||''}" placeholder="–"
+        data-id="${cc.id}" data-i="${i}"
+        onfocus="this.select()"
+        oninput="onHourChange(this)"
+        onkeydown="if(event.key==='Enter'){this.blur();event.preventDefault();}"
+      ></td>`;
+    });
+
+    h += `<td class="pin-right" id="row-total-${cc.id}">${rowTotal>0?rowTotal.toFixed(1):'—'}</td>`;
+    h += '</tr>';
+  });
+
+  // Add row
+  h += `<tr class="add-row"><td colspan="${DAYS.length+2}">
+    <button class="add-cc-btn" onclick="addChargeCode()">
+      <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Add charge code
+    </button>
+  </td></tr>`;
+
+  // Total row
+  h += '<tr class="total-row"><td class="pin-left">Total hours</td>';
+  DAYS.forEach((d,i) => {
+    const v = dailyTotals[i];
+    const cls = [d.wknd?'wknd':'', d.d===TODAY?'today-col':'', v===0?'dim':''].filter(Boolean).join(' ');
+    h += `<td class="${cls}" id="day-total-${i}">${v>0?v.toFixed(1):'—'}</td>`;
+  });
+  h += `<td class="pin-right" id="grand-total">${grand.toFixed(1)}</td></tr>`;
+
+  // Work schedule row
+  h += '<tr class="sum-row"><td class="pin-left">Work Schedule</td>';
+  DAYS.forEach((d,i) => {
+    const v = SCHEDULE[i];
+    const cls = [d.wknd?'wknd':'', d.d===TODAY?'today-col':'', v===0?'dim':''].filter(Boolean).join(' ');
+    h += `<td class="${cls}">${v>0?v:'—'}</td>`;
+  });
+  h += `<td class="pin-right">${SCHEDULE_TOTAL.toFixed(1)}</td></tr>`;
+
+  // Overtime row
+  h += '<tr class="sum-row"><td class="pin-left">Overtime</td>';
+  DAYS.forEach(d => {
+    const cls = [d.wknd?'wknd':'', d.d===TODAY?'today-col':'', 'dim'].filter(Boolean).join(' ');
+    h += `<td class="${cls}">—</td>`;
+  });
+  h += '<td class="pin-right dim">0.0</td></tr>';
+
+  document.getElementById('tbody').innerHTML = h;
+
+  // Attach delegated events
+  document.getElementById('tbody').addEventListener('click', onBodyClick);
+}
+
+function render() { renderHead(); renderBody(); updateKPI(); }
+
+// ── INTERACTIONS ────────────────────────────────────────────────
+function onBodyClick(e) {
+  const chip = e.target.closest('.loc-chip');
+  if (chip) { cycleLocation(+chip.dataset.id); return; }
+  const rm = e.target.closest('[data-rm]');
+  if (rm) { removeCode(+rm.dataset.rm); }
+}
+
+function onHourChange(inp) {
+  const id = +inp.dataset.id, i = +inp.dataset.i;
+  const val = Math.max(0, Math.min(24, parseFloat(inp.value)||0));
+  inp.value = val || '';
+  const cc = codes.find(c => c.id===id);
+  if (!cc) return;
+  cc.hrs[i] = val;
+
+  // Update row total
+  const rt = cc.hrs.reduce((a,b)=>a+b,0);
+  document.getElementById(`row-total-${id}`).textContent = rt>0?rt.toFixed(1):'—';
+
+  // Update day total
+  const dayTotal = codes.reduce((s,c)=>s+(c.hrs[i]||0),0);
+  const dtEl = document.getElementById(`day-total-${i}`);
+  if (dtEl) { dtEl.textContent = dayTotal>0?dayTotal.toFixed(1):'—'; dtEl.classList.toggle('dim', dayTotal===0); }
+
+  // Update grand total
+  const grand = codes.reduce((s,c)=>s+c.hrs.reduce((a,b)=>a+b,0),0);
+  document.getElementById('grand-total').textContent = grand.toFixed(1);
+
+  setDirty(true);
+  updateKPI();
+}
+
+function cycleLocation(id) {
+  const cc = codes.find(c=>c.id===id);
+  if (!cc) return;
+  cc.loc = LOCS[(LOCS.indexOf(cc.loc)+1) % LOCS.length];
+  const chip = document.querySelector(`.loc-chip[data-id="${id}"] .loc-txt`);
+  if (chip) chip.textContent = cc.loc;
+  setDirty(true);
+}
+
+function removeCode(id) {
+  if (codes.length <= 1) { showToast('At least one charge code required','⚠'); return; }
+  codes = codes.filter(c=>c.id!==id);
+  render();
+  setDirty(true);
+}
+
+const SAMPLE_CODES = [
+  ['Beta_Launch_QA_7821','BL7821'],['Internal_Admin_0001','ADM001'],
+  ['Client_Meeting_4402','CM4402'],['Dev_Sprint_Alpha_3301','DSA330'],
+  ['Overhead_Internal_5500','OHD550'],['Training_Program_0099','TRN099'],
+];
+
+function addChargeCode() {
+  const [code, proj] = SAMPLE_CODES[(nextId-1) % SAMPLE_CODES.length];
+  codes.push({
+    id: nextId, code: code+'_'+nextId, proj,
+    loc:'TM', color: COLORS[(nextId-1) % COLORS.length],
+    hrs: Array(16).fill(0),
+  });
+  nextId++;
+  render();
+  setDirty(true);
+  showToast('Charge code added','✓');
+}
+
+function updateKPI() {
+  const total = codes.reduce((s,c)=>s+c.hrs.reduce((a,b)=>a+b,0),0);
+  const pct = SCHEDULE_TOTAL > 0 ? (total/SCHEDULE_TOTAL)*100 : 0;
+  const variance = total - SCHEDULE_TOTAL;
+
+  document.getElementById('kpiTotal').textContent = total.toFixed(1);
+  const fill = document.getElementById('kpiFill');
+  fill.style.width = Math.min(100,pct)+'%';
+  fill.className = 'kpi-fill ' + (pct>=100?'green':pct>=75?'amber':'red');
+
+  document.getElementById('kpiUtil').textContent = Math.round(pct)+'%';
+  const utilSub = document.getElementById('kpiUtilSub');
+  const utilFill = document.getElementById('kpiUtilFill');
+  if (pct>=100) { utilSub.textContent='Fully scheduled'; utilFill.className='kpi-fill green'; }
+  else if (pct>=75) { utilSub.textContent='Near target'; utilFill.className='kpi-fill amber'; }
+  else { utilSub.textContent='Under schedule'; utilFill.className='kpi-fill red'; }
+  utilFill.style.width = Math.min(100,pct)+'%';
+
+  const varEl = document.getElementById('kpiVar');
+  const varSub = document.getElementById('kpiVarSub');
+  const varFill = document.getElementById('kpiVarFill');
+  varEl.textContent = (variance>=0?'+':'')+variance.toFixed(1)+'h';
+  varEl.style.color = variance>=0?'var(--approved)':variance<-8?'var(--destructive)':'var(--pending)';
+  varSub.textContent = variance>0?'Over scheduled':variance===0?'Fully scheduled':'Hours missing';
+  varFill.className = 'kpi-fill '+(variance>=0?'green':variance<-8?'red':'amber');
+  varFill.style.width = Math.max(5, Math.min(100, 50+(variance/SCHEDULE_TOTAL*100)))+'%';
+}
+
+function setDirty(v) {
+  document.getElementById('unsavedDot').classList.toggle('on', v);
+}
+
+function handleSave() {
+  setDirty(false);
+  showToast('Timesheet saved','✓');
+}
+
+function handleSubmit() {
+  const total = codes.reduce((s,c)=>s+c.hrs.reduce((a,b)=>a+b,0),0);
+  if (total===0) { showToast('No hours entered','⚠'); return; }
+  setDirty(false);
+  const badge = document.getElementById('statusBadge');
+  badge.className = 'status-badge submitted';
+  badge.innerHTML = '<span class="dot"></span>Submitted';
+  showToast('Timesheet submitted for approval','✓');
+}
+
+let toastTimer;
+function showToast(msg, icon='✓') {
+  document.getElementById('toastMsg').textContent = msg;
+  document.getElementById('toastIcon').textContent = icon;
+  const t = document.getElementById('toast');
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.remove('show'), 2800);
+}
+
+// Nav tab clicks
+document.querySelectorAll('.nav-link').forEach(el => {
+  el.addEventListener('click', function() {
+    document.querySelectorAll('.nav-link').forEach(n=>n.classList.remove('active'));
+    this.classList.add('active');
+  });
+});
+
+render();
+</script>
+</body>
+</html>

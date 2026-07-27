@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TrackFlow — Time Tracking</title>
+<link rel="stylesheet" href="design-system.css">
+<style>
+
+/* ── Layout ─────────────────────────────────────────────────── */
+.view { display: none; }
+.view.active { display: block; }
+.inner { padding: 0 24px; }
+
+/* ── Timer Hero ─────────────────────────────────────────────── */
+.timer-hero {
+  margin: 24px 24px 0;
+  background: var(--card);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-card);
+  padding: 18px 24px;
+  transition: border-color .25s, background .25s;
+}
+.timer-hero.live {
+  border-color: rgba(11,124,124,.3);
+  background: rgba(11,124,124,.04);
+}
+
+/* Idle */
+.ti-row { display: flex; align-items: center; gap: 10px; }
+.ti-icon { color: var(--muted-fg); flex-shrink: 0; }
+.ti-what {
+  flex: 1; min-width: 0;
+  border: none; outline: none;
+  font-family: var(--font-ui); font-size: 15px; font-weight: 500; color: var(--primary);
+  background: transparent;
+}
+.ti-what::placeholder { color: var(--muted-fg); font-weight: 400; }
+.ti-proj {
+  height: 36px; padding: 0 28px 0 10px;
+  border: 1.5px solid var(--border); border-radius: var(--radius-default);
+  font-family: var(--font-ui); font-size: 12px; font-weight: 600; color: var(--primary);
+  background: white; cursor: pointer; outline: none; appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' fill='none' stroke='%236B7897' stroke-width='2.5' viewBox='0 0 24 24'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 9px center;
+  min-width: 175px;
+}
+.ti-proj:focus { border-color: var(--accent); }
+.ti-sep { border: none; border-top: 1px solid var(--border); margin: 14px 0; }
+.ti-manual { display: flex; align-items: center; gap: 10px; }
+.ti-manual-lbl { font-size: 12px; color: var(--muted-fg); }
+.ti-dur {
+  width: 72px; height: 32px; padding: 0 8px;
+  border: 1.5px solid var(--border); border-radius: var(--radius-default);
+  text-align: center; font-family: var(--font-mono); font-size: 13px; font-weight: 500;
+  color: var(--primary); outline: none; background: white;
+}
+.ti-dur:focus { border-color: var(--accent); }
+
+/* Live / running */
+.tl-row { display: flex; align-items: center; gap: 16px; }
+.tl-pulse {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--color-approved); flex-shrink: 0;
+  animation: ds-pulse 1.4s ease-in-out infinite;
+}
+.tl-info { flex: 1; min-width: 0; }
+.tl-task { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tl-meta { font-size: 11px; color: var(--muted-fg); margin-top: 3px; display: flex; align-items: center; gap: 6px; }
+.tl-elapsed {
+  font-family: var(--font-mono); font-size: 30px; font-weight: 500;
+  color: var(--accent); letter-spacing: -0.5px; white-space: nowrap;
+}
+.btn-stop {
+  height: 38px; padding: 0 18px;
+  background: var(--primary); color: white;
+  border: none; border-radius: var(--radius-default);
+  font-family: var(--font-ui); font-size: 13px; font-weight: 600;
+  cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+  transition: opacity .15s; flex-shrink: 0;
+}
+.btn-stop:hover { opacity: .88; }
+
+/* ── Dashboard layout ───────────────────────────────────────── */
+.kpi-row  { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; padding: 16px 24px 0; }
+.db-cols  { display: grid; grid-template-columns: 1fr 300px; gap: 16px; padding: 16px 24px 48px; }
+
+/* ── Panel ──────────────────────────────────────────────────── */
+.panel { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-card); overflow: hidden; }
+.panel-hd {
+  padding: 12px 20px;
+  display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+}
+.panel-lbl { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--muted-fg); }
+.panel-lnk { font-size: 11px; font-weight: 600; color: var(--accent); cursor: pointer; background: none; border: none; font-family: inherit; padding: 0; }
+.panel-lnk:hover { opacity: .75; }
+
+/* Today's log (compact rows in panel) */
+.log-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 20px; border-bottom: 1px solid var(--border);
+  transition: background .1s;
+}
+.log-row:last-child { border-bottom: none; }
+.log-row:hover { background: rgba(232,237,247,.4); }
+.log-dot  { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+.log-main { flex: 1; min-width: 0; }
+.log-task { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.log-proj { font-size: 11px; color: var(--muted-fg); }
+.log-dur  { font-family: var(--font-mono); font-size: 12px; font-weight: 500; white-space: nowrap; }
+.log-footer {
+  padding: 10px 20px;
+  display: flex; justify-content: space-between; align-items: center;
+  border-top: 1px solid var(--border);
+}
+.log-footer-lbl  { font-size: 11px; color: var(--muted-fg); }
+.log-footer-tot  { font-family: var(--font-mono); font-size: 13px; font-weight: 700; }
+
+/* ── Week mini-chart ────────────────────────────────────────── */
+.bar-chart-wrap { padding: 16px 16px 10px; }
+.bars { display: flex; align-items: flex-end; gap: 5px; height: 80px; }
+.bc { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 5px; justify-content: flex-end; }
+.bv { width: 100%; border-radius: 3px 3px 0 0; min-height: 2px; transition: height .35s ease; }
+.bv.filled  { background: var(--chart-1); }
+.bv.today   { background: var(--primary); }
+.bv.none    { background: rgba(107,120,151,.15); }
+.bl { font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--muted-fg); }
+.bl.today   { color: var(--primary); font-weight: 700; }
+.chart-meta {
+  display: grid; grid-template-columns: 1fr 1fr 1fr;
+  gap: 4px; padding: 10px 0 4px;
+  border-top: 1px solid var(--border); margin-top: 10px;
+}
+.cm-i { text-align: center; }
+.cm-v { font-family: var(--font-mono); font-size: 11px; font-weight: 700; color: var(--primary); }
+.cm-l { font-size: 9px; color: var(--muted-fg); text-transform: uppercase; letter-spacing: .05em; }
+
+/* ── Time view ──────────────────────────────────────────────── */
+.view-bar {
+  background: var(--card); border-bottom: 1px solid var(--border);
+  padding: 10px 24px; display: flex; align-items: center; gap: 10px;
+}
+.f-sel {
+  height: 30px; padding: 0 26px 0 10px;
+  border: 1px solid var(--border); border-radius: var(--radius-default);
+  font-family: var(--font-ui); font-size: 12px; font-weight: 500; color: var(--primary);
+  background: white; cursor: pointer; outline: none; appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='9' height='9' fill='none' stroke='%236B7897' stroke-width='2.5' viewBox='0 0 24 24'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 8px center;
+}
+.f-sel:focus { border-color: var(--accent); }
+.time-body { padding: 0 24px 80px; }
+.dg { margin-top: 20px; }
+.dg-hd {
+  display: flex; align-items: center; gap: 12px;
+  padding-bottom: 8px; border-bottom: 1px solid var(--border); margin-bottom: 2px;
+}
+.dg-lbl  { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted-fg); }
+.dg-date { font-size: 13px; font-weight: 600; }
+.dg-tot  { margin-left: auto; font-family: var(--font-mono); font-size: 13px; font-weight: 700; }
+
+/* ── Projects view ──────────────────────────────────────────── */
+.projects-view { padding: 24px; padding-bottom: 48px; }
+.proj-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; }
+.proj-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius-card); overflow: hidden;
+  transition: box-shadow .15s, transform .15s; cursor: default;
+}
+.proj-card:hover { box-shadow: 0 4px 20px rgba(12,22,49,.08); transform: translateY(-1px); }
+.proj-stripe { height: 5px; }
+.proj-body   { padding: 16px 20px 20px; }
+.proj-name   { font-size: 14px; font-weight: 700; margin-bottom: 2px; }
+.proj-client { font-size: 11px; color: var(--muted-fg); margin-bottom: 16px; }
+.proj-stats  { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+.ps-v { font-family: var(--font-mono); font-size: 15px; font-weight: 700; color: var(--primary); }
+.ps-l { font-size: 9px; color: var(--muted-fg); text-transform: uppercase; letter-spacing: .05em; margin-top: 2px; }
+.proj-track { height: 5px; background: var(--muted); border-radius: 99px; overflow: hidden; }
+.proj-fill  { height: 100%; border-radius: 99px; transition: width .4s; }
+.proj-bar-footer { display: flex; justify-content: space-between; margin-top: 5px; }
+.pbf-pct { font-size: 10px; font-weight: 600; }
+.pbf-lbl { font-size: 10px; color: var(--muted-fg); }
+.proj-actions {
+  display: flex; gap: 6px; padding: 10px 20px;
+  border-top: 1px solid var(--border); background: rgba(232,237,247,.3);
+}
+
+/* ── Reports view ───────────────────────────────────────────── */
+.reports-view { padding: 24px; padding-bottom: 48px; }
+.rpt-kpi { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; margin-bottom: 20px; }
+.rpt-cols { display: grid; grid-template-columns: 1fr 340px; gap: 16px; }
+.svg-wrap { padding: 20px 16px 12px; }
+.breakdown-wrap { padding: 12px 20px 16px; }
+.bd-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.bd-dot  { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+.bd-name { font-size: 12px; font-weight: 600; width: 115px; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bd-track{ flex: 1; height: 7px; background: var(--muted); border-radius: 99px; overflow: hidden; }
+.bd-fill { height: 100%; border-radius: 99px; }
+.bd-val  { font-family: var(--font-mono); font-size: 11px; font-weight: 600; width: 38px; text-align: right; flex-shrink: 0; }
+
+/* Period toggle */
+.period-toggle { display: flex; align-items: center; gap: 4px; }
+.ptgl-btn {
+  height: 28px; padding: 0 12px;
+  border: 1px solid var(--border); border-radius: var(--radius-default);
+  font-family: var(--font-ui); font-size: 12px; font-weight: 500; color: var(--muted-fg);
+  background: white; cursor: pointer; transition: all .15s;
+}
+.ptgl-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+/* ── Misc ───────────────────────────────────────────────────── */
+.section-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 16px;
+}
+.section-title { font-size: 16px; font-weight: 700; }
+.section-sub   { font-size: 12px; color: var(--muted-fg); margin-top: 1px; }
+</style>
+</head>
+<body>
+
+<!-- ── HEADER ────────────────────────────────────────────────── -->
+<header class="app-header">
+  <div class="logo" style="display:flex;align-items:center;gap:8px;">
+    <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="var(--accent)" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+    TrackFlow
+  </div>
+  <nav>
+    <div class="nav-link active" data-view="dashboard">Dashboard</div>
+    <div class="nav-link" data-view="time">Time</div>
+    <div class="nav-link" data-view="projects">Projects</div>
+    <div class="nav-link" data-view="reports">Reports</div>
+  </nav>
+  <div class="header-right">
+    <button class="hdr-icon" title="Notifications" onclick="showToast('No new notifications','✓')">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+    </button>
+    <button class="hdr-icon" title="Settings" onclick="showToast('Settings coming soon','⚙')">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+    <div class="avatar">IK</div>
+  </div>
+</header>
+
+<!-- ════════════════════════════════════════════════════════════
+     DASHBOARD
+══════════════════════════════════════════════════════════════ -->
+<div id="view-dashboard" class="view active">
+
+  <!-- Timer hero -->
+  <div class="timer-hero" id="timerHero">
+
+    <!-- Idle state -->
+    <div id="timerIdle">
+      <div class="ti-row">
+        <svg class="ti-icon" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <input class="ti-what" id="timerTask" placeholder="What are you working on?" autocomplete="off">
+        <select class="ti-proj" id="timerProj">
+          <option value="synapse">API Platform — Synapse Corp</option>
+          <option value="hyperion">Beta Launch — Hyperion Media</option>
+          <option value="nova">UX Research — Nova Systems</option>
+          <option value="internal">Internal / Admin</option>
+        </select>
+        <button class="btn btn-accent" style="height:36px;font-size:13px;" onclick="startTimer()">
+          <svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          Start
+        </button>
+      </div>
+      <hr class="ti-sep">
+      <div class="ti-manual">
+        <span class="ti-manual-lbl">Log manually:</span>
+        <input class="ti-dur" id="manualDur" placeholder="h:mm" maxlength="5">
+        <select class="f-sel" id="manualProj" style="height:32px;">
+          <option value="synapse">API Platform</option>
+          <option value="hyperion">Beta Launch</option>
+          <option value="nova">UX Research</option>
+          <option value="internal">Internal</option>
+        </select>
+        <button class="btn btn-ghost btn-sm" onclick="logManual()">Log time</button>
+      </div>
+    </div>
+
+    <!-- Running state -->
+    <div id="timerLive" style="display:none">
+      <div class="tl-row">
+        <div class="tl-pulse"></div>
+        <div class="tl-info">
+          <div class="tl-task" id="liveTask"></div>
+          <div class="tl-meta">
+            <span id="liveProj"></span>
+            <span>·</span>
+            <span class="badge badge-draft" style="padding:1px 7px;font-size:10px;"><span class="dot"></span>Billable</span>
+          </div>
+        </div>
+        <div class="tl-elapsed" id="liveElapsed">0:00:00</div>
+        <button class="btn-stop" onclick="stopTimer()">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+          Stop
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- KPI cards -->
+  <div class="kpi-row" id="kpiRow"></div>
+
+  <!-- Bottom columns -->
+  <div class="db-cols">
+
+    <!-- Today's log -->
+    <div class="panel">
+      <div class="panel-hd">
+        <span class="panel-lbl">Today's log</span>
+        <button class="panel-lnk" onclick="switchView('time')">View all →</button>
+      </div>
+      <div id="todayLog"></div>
+    </div>
+
+    <!-- This week chart -->
+    <div class="panel">
+      <div class="panel-hd">
+        <span class="panel-lbl">This week</span>
+        <span class="panel-lbl" id="weekRangeLabel"></span>
+      </div>
+      <div class="bar-chart-wrap">
+        <div class="bars" id="weekBars"></div>
+        <div class="chart-meta" id="weekMeta"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════
+     TIME ENTRIES
+══════════════════════════════════════════════════════════════ -->
+<div id="view-time" class="view">
+  <div class="view-bar">
+    <svg width="14" height="14" fill="none" stroke="var(--muted-fg)" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    <select class="f-sel" id="filterWeek">
+      <option>Week of Jul 21, 2026</option>
+      <option>Week of Jul 14, 2026</option>
+      <option>Week of Jul 7, 2026</option>
+    </select>
+    <select class="f-sel" id="filterProj">
+      <option value="">All projects</option>
+      <option value="synapse">API Platform</option>
+      <option value="hyperion">Beta Launch</option>
+      <option value="nova">UX Research</option>
+      <option value="internal">Internal</option>
+    </select>
+    <select class="f-sel" id="filterStatus">
+      <option value="">All statuses</option>
+      <option value="approved">Approved</option>
+      <option value="submitted">Submitted</option>
+      <option value="draft">Draft</option>
+    </select>
+    <div class="spacer"></div>
+    <button class="btn btn-outline btn-sm" onclick="openModal()">
+      <svg width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Log time
+    </button>
+  </div>
+  <div class="time-body" id="timeBody"></div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════
+     PROJECTS
+══════════════════════════════════════════════════════════════ -->
+<div id="view-projects" class="view">
+  <div class="projects-view">
+    <div class="section-header">
+      <div>
+        <div class="section-title">Projects</div>
+        <div class="section-sub">4 active · Week of Jul 21–27, 2026</div>
+      </div>
+      <button class="btn btn-accent btn-sm" onclick="showToast('New project form coming soon','✦')">
+        <svg width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        New project
+      </button>
+    </div>
+    <div class="proj-grid" id="projGrid"></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════
+     REPORTS
+══════════════════════════════════════════════════════════════ -->
+<div id="view-reports" class="view">
+  <div class="reports-view">
+    <div class="section-header">
+      <div>
+        <div class="section-title">Reports</div>
+        <div class="section-sub">Jul 21–27, 2026</div>
+      </div>
+      <div class="period-toggle">
+        <button class="ptgl-btn active">Week</button>
+        <button class="ptgl-btn" onclick="showToast('Monthly view coming soon','📊')">Month</button>
+        <button class="ptgl-btn" onclick="showToast('Export ready','⬇')">Export CSV</button>
+      </div>
+    </div>
+
+    <!-- Summary KPIs -->
+    <div class="rpt-kpi" id="rptKpi"></div>
+
+    <!-- Charts row -->
+    <div class="rpt-cols">
+
+      <!-- SVG bar chart -->
+      <div class="panel">
+        <div class="panel-hd">
+          <span class="panel-lbl">Hours per day</span>
+          <span style="font-size:11px;color:var(--muted-fg);">Mon–Sun · Jul 21–27</span>
+        </div>
+        <div class="svg-wrap">
+          <svg viewBox="0 0 500 160" width="100%" style="overflow:visible;">
+            <!-- Grid lines -->
+            <line x1="35" y1="10" x2="490" y2="10" stroke="var(--border)" stroke-width="1"/>
+            <line x1="35" y1="70" x2="490" y2="70" stroke="var(--border)" stroke-width="1"/>
+            <line x1="35" y1="130" x2="490" y2="130" stroke="var(--border)" stroke-width="1"/>
+            <!-- Y labels -->
+            <text x="32" y="14" text-anchor="end" font-size="10" font-family="'JetBrains Mono',monospace" fill="#6B7897">8h</text>
+            <text x="32" y="74" text-anchor="end" font-size="10" font-family="'JetBrains Mono',monospace" fill="#6B7897">4h</text>
+            <text x="32" y="134" text-anchor="end" font-size="10" font-family="'JetBrains Mono',monospace" fill="#6B7897">0h</text>
+            <!-- Mon 8.0h -->
+            <rect id="bar-mon" x="40" y="10" width="46" height="120" rx="3" fill="#0B7C7C"/>
+            <text x="63" y="148" text-anchor="middle" font-size="10" font-weight="600" font-family="inherit" fill="#6B7897">Mon</text>
+            <!-- Tue 8.0h -->
+            <rect id="bar-tue" x="110" y="10" width="46" height="120" rx="3" fill="#0B7C7C"/>
+            <text x="133" y="148" text-anchor="middle" font-size="10" font-weight="600" font-family="inherit" fill="#6B7897">Tue</text>
+            <!-- Wed 6.5h -->
+            <rect id="bar-wed" x="180" y="32" width="46" height="98" rx="3" fill="#0B7C7C"/>
+            <text x="203" y="148" text-anchor="middle" font-size="10" font-weight="600" font-family="inherit" fill="#6B7897">Wed</text>
+            <!-- Thu 8.0h -->
+            <rect id="bar-thu" x="250" y="10" width="46" height="120" rx="3" fill="#0B7C7C"/>
+            <text x="273" y="148" text-anchor="middle" font-size="10" font-weight="600" font-family="inherit" fill="#6B7897">Thu</text>
+            <!-- Fri 3.5h (today, primary color) -->
+            <rect id="bar-fri" x="320" y="77" width="46" height="53" rx="3" fill="#0C1631"/>
+            <text x="343" y="148" text-anchor="middle" font-size="10" font-weight="700" font-family="inherit" fill="#0C1631">Fri</text>
+            <!-- Hour labels above bars -->
+            <text x="63" y="6" text-anchor="middle" font-size="9" font-family="'JetBrains Mono',monospace" fill="#0B7C7C" font-weight="600">8h</text>
+            <text x="133" y="6" text-anchor="middle" font-size="9" font-family="'JetBrains Mono',monospace" fill="#0B7C7C" font-weight="600">8h</text>
+            <text x="203" y="28" text-anchor="middle" font-size="9" font-family="'JetBrains Mono',monospace" fill="#0B7C7C" font-weight="600">6.5h</text>
+            <text x="273" y="6" text-anchor="middle" font-size="9" font-family="'JetBrains Mono',monospace" fill="#0B7C7C" font-weight="600">8h</text>
+            <text x="343" y="73" text-anchor="middle" font-size="9" font-family="'JetBrains Mono',monospace" fill="#0C1631" font-weight="600">3.5h</text>
+            <!-- Sat/Sun placeholders -->
+            <rect x="390" y="128" width="46" height="2" rx="1" fill="#E8EDF7"/>
+            <text x="413" y="148" text-anchor="middle" font-size="10" font-weight="600" font-family="inherit" fill="#6B7897">Sat</text>
+            <rect x="460" y="128" width="46" height="2" rx="1" fill="#E8EDF7"/>
+            <text x="483" y="148" text-anchor="middle" font-size="10" font-weight="600" font-family="inherit" fill="#6B7897">Sun</text>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Project breakdown -->
+      <div class="panel">
+        <div class="panel-hd">
+          <span class="panel-lbl">By project</span>
+          <span style="font-size:11px;color:var(--muted-fg);">This week</span>
+        </div>
+        <div class="breakdown-wrap" id="breakdown"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════
+     ADD ENTRY MODAL
+══════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModalOutside(event)">
+  <div class="modal">
+    <div class="modal-title">Log time</div>
+    <div class="form-group">
+      <label class="form-label required">Task description</label>
+      <input class="form-input" id="mTask" placeholder="e.g. API integration — auth module" autocomplete="off">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label required">Project</label>
+        <select class="form-input" id="mProj">
+          <option value="synapse">API Platform — Synapse Corp</option>
+          <option value="hyperion">Beta Launch — Hyperion Media</option>
+          <option value="nova">UX Research — Nova Systems</option>
+          <option value="internal">Internal / Admin</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label required">Duration</label>
+        <input class="form-input" id="mDur" placeholder="e.g. 2:30 or 2.5" autocomplete="off">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Date</label>
+      <input class="form-input" type="date" id="mDate" value="2026-07-25">
+    </div>
+    <div class="form-group">
+      <label class="checkbox-row">
+        <input type="checkbox" id="mBill" checked>
+        Billable to client
+      </label>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-accent" onclick="addFromModal()">Log time</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"><span id="toastIcon">✓</span><span id="toastMsg">Saved</span></div>
+
+<script>
+// ── DATA ────────────────────────────────────────────────────────
+const PROJ = {
+  synapse:  { name: 'API Platform',  client: 'Synapse Corp',   color: '#0B7C7C', rate: 125, cap: 60  },
+  hyperion: { name: 'Beta Launch',   client: 'Hyperion Media', color: '#3B4FBF', rate: 110, cap: 40  },
+  nova:     { name: 'UX Research',   client: 'Nova Systems',   color: '#C47F17', rate: 150, cap: 20  },
+  internal: { name: 'Internal',      client: '—',              color: '#7C3AED', rate: 0,   cap: null },
+};
+
+const STATUS_CLS = { approved:'badge-approved', submitted:'badge-submitted', draft:'badge-draft' };
+const STATUS_LBL = { approved:'Approved', submitted:'Submitted', draft:'Draft' };
+const TODAY = '2026-07-25';
+const WEEK  = ['2026-07-21','2026-07-22','2026-07-23','2026-07-24','2026-07-25','2026-07-26','2026-07-27'];
+const DOW   = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+
+let entries = [
+  {id:1,  date:'2026-07-21', proj:'synapse',  task:'Sprint planning & setup',          h:2.0, bill:true,  st:'approved'},
+  {id:2,  date:'2026-07-21', proj:'synapse',  task:'API design review',                h:3.0, bill:true,  st:'approved'},
+  {id:3,  date:'2026-07-21', proj:'internal', task:'Team standup',                     h:0.5, bill:false, st:'approved'},
+  {id:4,  date:'2026-07-21', proj:'hyperion', task:'QA sprint kickoff',                h:2.5, bill:true,  st:'approved'},
+  {id:5,  date:'2026-07-22', proj:'synapse',  task:'Auth module implementation',       h:4.0, bill:true,  st:'approved'},
+  {id:6,  date:'2026-07-22', proj:'synapse',  task:'Data layer refactor',              h:2.5, bill:true,  st:'approved'},
+  {id:7,  date:'2026-07-22', proj:'internal', task:'1:1 with manager',                 h:1.0, bill:false, st:'approved'},
+  {id:8,  date:'2026-07-22', proj:'hyperion', task:'Regression testing — Sprint 3',   h:0.5, bill:true,  st:'approved'},
+  {id:9,  date:'2026-07-23', proj:'synapse',  task:'Export module feature',            h:3.5, bill:true,  st:'submitted'},
+  {id:10, date:'2026-07-23', proj:'nova',     task:'User flow testing session',        h:2.0, bill:true,  st:'submitted'},
+  {id:11, date:'2026-07-23', proj:'hyperion', task:'QA suite update',                  h:1.0, bill:true,  st:'submitted'},
+  {id:12, date:'2026-07-24', proj:'synapse',  task:'Deploy to staging',               h:2.5, bill:true,  st:'submitted'},
+  {id:13, date:'2026-07-24', proj:'nova',     task:'Client demo preparation',         h:1.5, bill:true,  st:'submitted'},
+  {id:14, date:'2026-07-24', proj:'synapse',  task:'Production deployment',           h:3.0, bill:true,  st:'submitted'},
+  {id:15, date:'2026-07-24', proj:'internal', task:'Sprint documentation',             h:1.0, bill:false, st:'submitted'},
+  {id:16, date:'2026-07-25', proj:'synapse',  task:'Sprint review & retrospective',   h:1.5, bill:true,  st:'draft'},
+  {id:17, date:'2026-07-25', proj:'synapse',  task:'Critical bug fix — login flow',   h:1.0, bill:true,  st:'draft'},
+  {id:18, date:'2026-07-25', proj:'nova',     task:'Research synthesis — Phase 3',   h:1.0, bill:true,  st:'draft'},
+];
+let nextId = 19;
+
+// ── TIMER ─────────────────────────────────────────────────────
+let timer = { on: false, start: null, interval: null, task: '', proj: '' };
+
+function startTimer() {
+  const task = document.getElementById('timerTask').value.trim();
+  const proj = document.getElementById('timerProj').value;
+  if (!task) { showToast('Enter a task description first', '⚠'); document.getElementById('timerTask').focus(); return; }
+  timer = { on: true, start: Date.now(), interval: null, task, proj };
+  document.getElementById('liveTask').textContent = task;
+  document.getElementById('liveProj').textContent = PROJ[proj].name + ' · ' + PROJ[proj].client;
+  document.getElementById('timerIdle').style.display = 'none';
+  document.getElementById('timerLive').style.display = 'block';
+  document.getElementById('timerHero').classList.add('live');
+  timer.interval = setInterval(tickTimer, 1000);
+  tickTimer();
+}
+
+function tickTimer() {
+  const s = Math.floor((Date.now() - timer.start) / 1000);
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+  document.getElementById('liveElapsed').textContent =
+    `${h}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+}
+
+function stopTimer() {
+  clearInterval(timer.interval);
+  const elapsed = (Date.now() - timer.start) / 3600000;
+  const h = Math.max(0.25, Math.round(elapsed * 4) / 4);
+  addEntry({ date: TODAY, proj: timer.proj, task: timer.task, h, bill: true, st: 'draft' });
+  timer.on = false;
+  document.getElementById('timerLive').style.display = 'none';
+  document.getElementById('timerIdle').style.display = 'block';
+  document.getElementById('timerHero').classList.remove('live');
+  document.getElementById('timerTask').value = '';
+  showToast(`${fmtH(h)} logged for "${timer.task}"`, '✓');
+}
+
+function logManual() {
+  const task = document.getElementById('timerTask').value.trim();
+  const proj = document.getElementById('manualProj').value;
+  const raw  = document.getElementById('manualDur').value.trim();
+  if (!task) { showToast('Enter a task description', '⚠'); document.getElementById('timerTask').focus(); return; }
+  const h = parseDur(raw);
+  if (!h) { showToast('Enter a valid duration, e.g. 2:30', '⚠'); return; }
+  addEntry({ date: TODAY, proj, task, h, bill: true, st: 'draft' });
+  document.getElementById('timerTask').value = '';
+  document.getElementById('manualDur').value = '';
+  showToast(`${fmtH(h)} logged`, '✓');
+}
+
+// ── ENTRY CRUD ────────────────────────────────────────────────
+function addEntry(e) {
+  entries.unshift({ id: nextId++, ...e });
+  renderAll();
+}
+function deleteEntry(id) {
+  entries = entries.filter(e => e.id !== id);
+  renderAll();
+  showToast('Entry deleted', '✓');
+}
+function editEntry(id) { showToast('Edit mode coming soon', '✏'); }
+
+// ── FORMAT HELPERS ────────────────────────────────────────────
+function parseDur(s) {
+  if (!s) return null;
+  if (s.includes(':')) { const [h,m] = s.split(':').map(Number); return h + (m||0)/60; }
+  const n = parseFloat(s); return isNaN(n) || n <= 0 ? null : n;
+}
+function fmtH(h) {
+  const hrs = Math.floor(h), mins = Math.round((h - hrs) * 60);
+  return mins ? `${hrs}h ${mins}m` : `${hrs}h`;
+}
+function fmtHM(h) {
+  const hrs = Math.floor(h), mins = Math.round((h - hrs) * 60);
+  return `${hrs}:${String(mins).padStart(2,'0')}`;
+}
+
+// ── RENDER ────────────────────────────────────────────────────
+function renderAll() {
+  renderKPI();
+  renderTodayLog();
+  renderWeekChart();
+  renderTimeBody();
+  renderProjects();
+  renderReports();
+}
+
+// KPI cards
+function renderKPI() {
+  const todayH  = entries.filter(e => e.date === TODAY).reduce((s,e) => s+e.h, 0);
+  const weekH   = entries.reduce((s,e) => s+e.h, 0);
+  const billH   = entries.filter(e => e.bill).reduce((s,e) => s+e.h, 0);
+  const billPct = weekH > 0 ? Math.round((billH / weekH) * 100) : 0;
+  const earn    = Math.round(
+    Object.keys(PROJ).reduce((s, k) =>
+      s + entries.filter(e => e.proj === k && e.bill).reduce((a,e) => a+e.h, 0) * PROJ[k].rate
+    , 0)
+  );
+
+  const todayPct = Math.min(100, (todayH / 8) * 100);
+  const weekPct  = Math.min(100, (weekH / 40) * 100);
+  const earnPct  = Math.min(100, (earn / 5000) * 100);
+
+  document.getElementById('kpiRow').innerHTML = kpiCard('Today','clock','teal',
+    fmtH(todayH), 'of 8h target',
+    todayPct, todayPct >= 75 ? 'green' : todayPct >= 50 ? 'amber' : 'red',
+    todayPct >= 100 ? `✓ Target met` : `${fmtH(8 - todayH)} remaining`
+  ) + kpiCard('This Week','bar-chart','indigo',
+    fmtH(weekH), 'of 40h target',
+    weekPct, weekPct >= 75 ? 'green' : 'amber',
+    `${Math.round(weekPct)}% complete`
+  ) + kpiCard('Billable Rate','percent','amber',
+    billPct + '%', 'of 80% target',
+    billPct, billPct >= 80 ? 'green' : 'amber',
+    billPct >= 80 ? `+${billPct-80}% above target` : `${80-billPct}% below target`
+  ) + kpiCard('Est. Earnings','dollar','green',
+    '$' + earn.toLocaleString(), 'from billable hours',
+    earnPct, earnPct >= 75 ? 'green' : 'amber',
+    fmtH(billH) + ' billable this week'
+  );
+}
+
+function kpiCard(label, icon, iconCls, value, sub, pct, fillCls, trend) {
+  const icons = {
+    clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+    'bar-chart': '<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>',
+    percent: '<line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/>',
+    dollar: '<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
+  };
+  return `<div class="kpi-card">
+    <div class="kpi-top">
+      <div class="kpi-label">${label}</div>
+      <div class="kpi-icon ${iconCls}">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">${icons[icon]}</svg>
+      </div>
+    </div>
+    <div class="kpi-value">${value}</div>
+    <div class="kpi-sub">${sub}</div>
+    <div class="kpi-bar"><div class="kpi-fill ${fillCls}" style="width:${pct}%"></div></div>
+    <div class="kpi-trend ${fillCls === 'green' ? 'up' : 'down'}" style="margin-top:6px;">
+      <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+        ${fillCls === 'green' ? '<polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>' : '<polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/>'}
+      </svg>
+      <span style="font-size:11px;">${trend}</span>
+    </div>
+  </div>`;
+}
+
+// Today's log panel
+function renderTodayLog() {
+  const today = entries.filter(e => e.date === TODAY).sort((a,b) => b.id - a.id);
+  const total = today.reduce((s,e) => s+e.h, 0);
+  document.getElementById('todayLog').innerHTML = today.length
+    ? today.map(e => `<div class="log-row">
+        <div class="log-dot" style="background:${PROJ[e.proj].color}"></div>
+        <div class="log-main">
+          <div class="log-task">${e.task}</div>
+          <div class="log-proj">${PROJ[e.proj].name} · ${e.bill ? 'Billable' : 'Non-billable'}</div>
+        </div>
+        <span class="badge ${STATUS_CLS[e.st]}" style="margin-right:8px;"><span class="dot"></span>${STATUS_LBL[e.st]}</span>
+        <div class="log-dur">${fmtHM(e.h)}</div>
+      </div>`).join('') +
+      `<div class="log-footer">
+        <span class="log-footer-lbl">${today.length} entr${today.length===1?'y':'ies'} · Jul 25</span>
+        <span class="log-footer-tot">${fmtH(total)}</span>
+      </div>`
+    : `<div style="padding:28px 20px;text-align:center;color:var(--muted-fg);font-size:13px;">
+        No entries yet today.<br><span style="font-size:12px;">Start a timer or log time above.</span>
+      </div>`;
+}
+
+// Week bar chart
+function renderWeekChart() {
+  const MAX_H = 8;
+  const bars = WEEK.map((d,i) => {
+    const h = entries.filter(e => e.date === d).reduce((s,e) => s+e.h, 0);
+    const pct = Math.min(100, (h / MAX_H) * 100);
+    const isToday = d === TODAY;
+    const isWknd  = i >= 5;
+    const cls = isWknd ? 'none' : (isToday ? 'today' : h > 0 ? 'filled' : 'none');
+    return `<div class="bc">
+      <div class="bv ${cls}" style="height:${pct}%"></div>
+      <div class="bl${isToday ? ' today' : ''}">${DOW[i]}</div>
+    </div>`;
+  });
+  document.getElementById('weekBars').innerHTML = bars.join('');
+  document.getElementById('weekRangeLabel').textContent = 'Jul 21–27';
+
+  const total  = entries.reduce((s,e) => s+e.h, 0);
+  const billH  = entries.filter(e => e.bill).reduce((s,e) => s+e.h, 0);
+  const target = 40;
+  document.getElementById('weekMeta').innerHTML = `
+    <div class="cm-i"><div class="cm-v">${fmtH(total)}</div><div class="cm-l">Logged</div></div>
+    <div class="cm-i"><div class="cm-v">${fmtH(billH)}</div><div class="cm-l">Billable</div></div>
+    <div class="cm-i"><div class="cm-v">${fmtH(target - total)}</div><div class="cm-l">Remaining</div></div>
+  `;
+}
+
+// Time view entries
+function renderTimeBody() {
+  const proj   = document.getElementById('filterProj')?.value   || '';
+  const status = document.getElementById('filterStatus')?.value || '';
+  let filtered = [...entries];
+  if (proj)   filtered = filtered.filter(e => e.proj === proj);
+  if (status) filtered = filtered.filter(e => e.st   === status);
+
+  const dates = [...new Set(filtered.map(e => e.date))].sort((a,b) => b.localeCompare(a));
+  const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  if (!dates.length) {
+    document.getElementById('timeBody').innerHTML =
+      `<div style="padding:48px 0;text-align:center;color:var(--muted-fg);font-size:13px;">No entries match the current filters.</div>`;
+    return;
+  }
+
+  document.getElementById('timeBody').innerHTML = dates.map(d => {
+    const day   = filtered.filter(e => e.date === d).sort((a,b) => b.id - a.id);
+    const total = day.reduce((s,e) => s+e.h, 0);
+    const dt    = new Date(d + 'T00:00:00');
+    const label = d === TODAY ? 'Today' : dayNames[dt.getDay()];
+    const dateStr = `${monthNames[dt.getMonth()]} ${dt.getDate()}, ${dt.getFullYear()}`;
+    return `<div class="dg">
+      <div class="dg-hd">
+        <span class="dg-lbl${d===TODAY?' day-header-today':''}">${label}</span>
+        <span class="dg-date">${dateStr}</span>
+        <span class="dg-tot">${fmtH(total)}</span>
+      </div>
+      ${day.map(e => entryRow(e)).join('')}
+    </div>`;
+  }).join('');
+}
+
+function entryRow(e) {
+  const p = PROJ[e.proj];
+  return `<div class="entry-row" data-id="${e.id}">
+    <div class="entry-dot" style="background:${p.color}"></div>
+    <div class="entry-main">
+      <div class="entry-task">${e.task}</div>
+      <div class="entry-meta">${p.name} · ${p.client}</div>
+    </div>
+    <span class="billable-flag ${e.bill?'yes':''}">
+      ${e.bill
+        ? `<svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> Billable`
+        : 'Non-billable'}
+    </span>
+    <span class="entry-dur">${fmtH(e.h)}</span>
+    <span class="badge ${STATUS_CLS[e.st]}"><span class="dot"></span>${STATUS_LBL[e.st]}</span>
+    <div class="entry-actions">
+      <button class="icon-btn" title="Edit" onclick="editEntry(${e.id})">
+        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      </button>
+      <button class="icon-btn del" title="Delete" onclick="deleteEntry(${e.id})">
+        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+      </button>
+    </div>
+  </div>`;
+}
+
+// Projects view
+function renderProjects() {
+  const projTotals = {};
+  Object.keys(PROJ).forEach(k => {
+    const h = entries.filter(e => e.proj === k).reduce((s,e) => s+e.h, 0);
+    const earn = Math.round(entries.filter(e => e.proj === k && e.bill).reduce((s,e) => s+e.h, 0) * PROJ[k].rate);
+    projTotals[k] = { h, earn };
+  });
+
+  // Accumulated hours (all-time, simulated with week * multiplier + base)
+  const allTime = { synapse:47.5, hyperion:28, nova:14, internal:8 };
+
+  document.getElementById('projGrid').innerHTML = Object.keys(PROJ).map(k => {
+    const p   = PROJ[k];
+    const tot = allTime[k];
+    const pct = p.cap ? Math.min(100, Math.round((tot / p.cap) * 100)) : null;
+    const earn = Math.round(tot * p.rate);
+    const fillCls = pct >= 90 ? 'red' : pct >= 75 ? 'amber' : 'green';
+    const fillColor = pct >= 90 ? 'var(--destructive)' : pct >= 75 ? 'var(--color-pending)' : p.color;
+
+    return `<div class="proj-card">
+      <div class="proj-stripe" style="background:${p.color}"></div>
+      <div class="proj-body">
+        <div class="proj-name">${p.name}</div>
+        <div class="proj-client">${p.client}</div>
+        <div class="proj-stats">
+          <div><div class="ps-v">${tot}h</div><div class="ps-l">Logged</div></div>
+          <div><div class="ps-v">${p.cap ? p.cap+'h' : '∞'}</div><div class="ps-l">Budget</div></div>
+          <div><div class="ps-v">${p.rate > 0 ? '$'+earn.toLocaleString() : '—'}</div><div class="ps-l">Earned</div></div>
+        </div>
+        ${p.cap ? `
+        <div class="proj-track"><div class="proj-fill" style="width:${pct}%;background:${fillColor}"></div></div>
+        <div class="proj-bar-footer">
+          <span class="pbf-pct" style="color:${fillColor}">${pct}%</span>
+          <span class="pbf-lbl">${pct >= 90 ? 'At risk' : pct >= 75 ? 'Near cap' : 'On track'}</span>
+        </div>` : `<div style="font-size:11px;color:var(--muted-fg);margin-top:4px;">No budget cap</div>`}
+      </div>
+      <div class="proj-actions">
+        <button class="btn btn-ghost btn-sm" onclick="showToast('Opening ${p.name}…','→')">View entries</button>
+        <button class="btn btn-ghost btn-sm" onclick="showToast('Opening ${p.name} report…','📊')">Report</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// Reports view
+function renderReports() {
+  const total  = entries.reduce((s,e) => s+e.h, 0);
+  const billH  = entries.filter(e => e.bill).reduce((s,e) => s+e.h, 0);
+  const nonB   = total - billH;
+  const earn   = Math.round(Object.keys(PROJ).reduce((s,k) =>
+    s + entries.filter(e => e.proj===k && e.bill).reduce((a,e) => a+e.h, 0) * PROJ[k].rate, 0));
+
+  document.getElementById('rptKpi').innerHTML = [
+    ['Total Logged', fmtH(total), 'vs 40h target', 'clock', 'teal'],
+    ['Billable Hours', fmtH(billH), `${Math.round(billH/total*100)}% of total`, 'dollar', 'green'],
+    ['Non-billable', fmtH(nonB), `${Math.round(nonB/total*100)}% of total`, 'percent', 'amber'],
+    ['Avg. Daily', fmtH(total/5), 'Mon–Fri average', 'bar-chart', 'indigo'],
+  ].map(([label,val,sub,icon,cls]) => kpiCard(label,icon,cls,val,sub,75,'green',sub)).join('');
+
+  // Project breakdown
+  const maxH = Math.max(...Object.keys(PROJ).map(k => entries.filter(e=>e.proj===k).reduce((s,e)=>s+e.h,0)));
+  document.getElementById('breakdown').innerHTML = Object.keys(PROJ).map(k => {
+    const h = entries.filter(e => e.proj===k).reduce((s,e) => s+e.h, 0);
+    if (!h) return '';
+    const pct = Math.round((h / maxH) * 100);
+    return `<div class="bd-row">
+      <div class="bd-dot" style="background:${PROJ[k].color}"></div>
+      <div class="bd-name">${PROJ[k].name}</div>
+      <div class="bd-track"><div class="bd-fill" style="width:${pct}%;background:${PROJ[k].color}"></div></div>
+      <div class="bd-val">${fmtH(h)}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── MODAL ─────────────────────────────────────────────────────
+function openModal() {
+  document.getElementById('modalOverlay').classList.add('open');
+  setTimeout(() => document.getElementById('mTask').focus(), 150);
+}
+function closeModal() { document.getElementById('modalOverlay').classList.remove('open'); }
+function closeModalOutside(e) { if (e.target === document.getElementById('modalOverlay')) closeModal(); }
+function addFromModal() {
+  const task = document.getElementById('mTask').value.trim();
+  const proj = document.getElementById('mProj').value;
+  const raw  = document.getElementById('mDur').value.trim();
+  const bill = document.getElementById('mBill').checked;
+  const date = document.getElementById('mDate').value || TODAY;
+  if (!task) { showToast('Task description required', '⚠'); return; }
+  const h = parseDur(raw);
+  if (!h)   { showToast('Enter a valid duration', '⚠'); return; }
+  addEntry({ date, proj, task, h, bill, st: 'draft' });
+  closeModal();
+  document.getElementById('mTask').value = '';
+  document.getElementById('mDur').value  = '';
+  showToast(`${fmtH(h)} logged`, '✓');
+}
+
+// ── NAV ───────────────────────────────────────────────────────
+function switchView(name) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+  document.getElementById('view-' + name).classList.add('active');
+  document.querySelector(`[data-view="${name}"]`).classList.add('active');
+}
+
+document.querySelectorAll('.nav-link').forEach(el => {
+  el.addEventListener('click', () => switchView(el.dataset.view));
+});
+
+// Filter changes re-render time view
+['filterProj','filterStatus','filterWeek'].forEach(id => {
+  document.getElementById(id)?.addEventListener('change', renderTimeBody);
+});
+
+// ── TOAST ─────────────────────────────────────────────────────
+let toastTimer;
+function showToast(msg, icon = '✓') {
+  document.getElementById('toastMsg').textContent  = msg;
+  document.getElementById('toastIcon').textContent = icon;
+  const t = document.getElementById('toast');
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+// ── KEYBOARD ──────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeModal();
+  if (e.key === 'Enter' && document.getElementById('manualDur') === document.activeElement) logManual();
+});
+document.getElementById('timerTask').addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    const dur = document.getElementById('manualDur').value.trim();
+    if (dur) logManual(); else startTimer();
+  }
+});
+
+// ── INIT ──────────────────────────────────────────────────────
+renderAll();
+</script>
+</body>
+</html>
